@@ -11,6 +11,7 @@
 #include <dxgidebug.h>
 #include <format>
 #include <string>
+#include "externals/DirectXTex/d3dx12.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 #pragma comment(lib, "d3d12.lib")
@@ -62,6 +63,13 @@ struct ModelData {
     std::vector<VertexData> vertices;
     MaterialData material;
 };
+
+struct TransformationMatrix {
+    Matrix4x4 World;
+    Matrix4x4 WVP;
+   
+};
+
 
 // 単位行列
 Matrix4x4 MakeIdentity4x4()
@@ -271,6 +279,9 @@ std::string ConvertString(const std::wstring& str)
 
     return result;
 }
+
+
+
 
 Matrix4x4 MakeOrthographicMatrix(float left, float top, float right, float bottom, float nearClip, float farClip)
 {
@@ -490,6 +501,22 @@ ModelData LoadObjFile(const std::string& directoryPath, const std::string& filen
 
     return modelData;
 }
+
+D3D12_CPU_DESCRIPTOR_HANDLE GetCPUDescriptorHandleCPU(ID3D12DescriptorHeap* descriptorHeap, uint32_t desriptorSize, uint32_t index)
+{
+    D3D12_CPU_DESCRIPTOR_HANDLE handleCPU = descriptorHeap->GetCPUDescriptorHandleForHeapStart();
+    handleCPU.ptr += (desriptorSize * index);
+    return handleCPU;
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE GetGPUDescriptorHandleGPU(ID3D12DescriptorHeap* descriptorHeap, uint32_t desriptorSize, uint32_t index)
+{
+    D3D12_GPU_DESCRIPTOR_HANDLE handleGPU = descriptorHeap->GetGPUDescriptorHandleForHeapStart();
+    handleGPU.ptr += (desriptorSize * index);
+    return handleGPU;
+}
+
+
 
 // ウィンドウプロシージャ
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -896,15 +923,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     descriptorRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // SRVを使う
     descriptorRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // 連続して使う
 
+    D3D12_DESCRIPTOR_RANGE descriptorRangeForInstancing[1] = {};
+    descriptorRangeForInstancing[0].BaseShaderRegister = 0;
+    descriptorRangeForInstancing[0].NumDescriptors = 1; // 1つのCBVを使う
+    descriptorRangeForInstancing[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV; // CBVを使う
+    descriptorRangeForInstancing[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND; // 連続して使う
+
+
     // ルートパラメータの設定
     D3D12_ROOT_PARAMETER rootParameters[3] = {};
     rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
     rootParameters[0].Descriptor.ShaderRegister = 0;
 
-    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+   // rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+   // rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+   // rootParameters[1].Descriptor.ShaderRegister = 0;
+
+    // 続きここから,動画は4番目1分50秒あたり
+    rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-    rootParameters[1].Descriptor.ShaderRegister = 0;
+    rootParameters[1].DescriptorTable.pDescriptorRanges = descriptorRangeForInstancing;
+    rootParameters[1].DescriptorTable.NumDescriptorRanges = _countof(descriptorRangeForInstancing);
+
 
     rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -1004,7 +1045,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 
     IDxcBlob* vertexShaderBlob = ComileShader(
-        L"Object3D.VS.hlsl",
+        L"Particle.VS.hlsl",
         L"vs_6_0",
         dxcUtils,
         dxcCompiler,
@@ -1012,7 +1053,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     assert(vertexShaderBlob != nullptr);
 
     IDxcBlob* pixelShaderBlob = ComileShader(
-        L"Object3D.PS.hlsl",
+        L"Particle.PS.hlsl",
         L"ps_6_0",
         dxcUtils,
         dxcCompiler,
@@ -1094,8 +1135,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     */
 
     // モデル読み込み
-    ModelData modelData = LoadObjFile("resources/fence", "fence.obj");
-    // ModelData modelData = LoadObjFile("resources", "axis.obj");
+   // ModelData modelData = LoadObjFile("resources/fence", "fence.obj");
+  // ModelData modelData = LoadObjFile("resources", "axis.obj");
+  // ModelData modelData = LoadObjFile("resources", "uvChecker.png");
+    ModelData modelData = LoadObjFile("resources", "plane.obj");
 
     ID3D12Resource* vertexResource = CreateBufferResource(device, sizeof(VertexData) * modelData.vertices.size()); // 頂点数分のサイズ
 
@@ -1231,6 +1274,50 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     indexDataSprite[4] = 3; // 5つ目の頂点を参照
     indexDataSprite[5] = 2; // 6つ目の頂点を参照
 
+    //----------------------------------------------------------------------
+    //インスタンシング
+
+    const uint32_t kNumInstance = 10;
+    Microsoft::WRL::ComPtr<ID3D12Resource> instancingResource =
+        CreateBufferResource(device, sizeof(TransformationMatrix) * kNumInstance);
+    // 書き込むためのアドレスを取得
+    TransformationMatrix* instancingData = nullptr;
+    instancingResource->Map(0, nullptr, reinterpret_cast<void**>(&instancingData));
+    for (uint32_t index = 0; index < kNumInstance; ++index) {
+        instancingData[index].WVP = MakeIdentity4x4();
+        instancingData[index].World = MakeIdentity4x4();
+    }
+
+
+    const uint32_t desriptorSizeSRV = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_SHADER_RESOURCE_VIEW_DESC instancingSrvDesc {};
+    instancingSrvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    instancingSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    instancingSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    instancingSrvDesc.Buffer.FirstElement = 0;
+    instancingSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+    instancingSrvDesc.Buffer.NumElements = kNumInstance;
+    instancingSrvDesc.Buffer.StructureByteStride = sizeof(TransformationMatrix);
+    D3D12_CPU_DESCRIPTOR_HANDLE instancingSrvHandleCPU = GetCPUDescriptorHandleCPU(srvDescriptorHeap, desriptorSizeSRV, 3); // 2つめのハンドルを取
+    D3D12_GPU_DESCRIPTOR_HANDLE instancingSrvHandleGPU = GetGPUDescriptorHandleGPU(srvDescriptorHeap, desriptorSizeSRV, 3);
+    device->CreateShaderResourceView(
+        instancingResource.Get(),
+        &instancingSrvDesc,
+        instancingSrvHandleCPU);
+
+    Transform transforms[kNumInstance];
+    for (uint32_t index = 0; index < kNumInstance; ++index) {
+        transforms[index].scale = { 1.0f, 1.0f, 1.0f };
+        transforms[index].rotate = { 0.0f, 0.0f, 0.0f };
+        transforms[index].translate = { index * 0.1f, index * 0.1f, index * 0.1f };
+    }
+
+
+
+    //----------------------------------------------------------------------
+
+
+
     MSG msg {};
     // ウィンドウのxボタンが押されるまでループ
     while (msg.message != WM_QUIT) {
@@ -1259,6 +1346,15 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             Matrix4x4 projectionMatrix = MakePerspectiveFovMatrix(0.45f, float(kClinetWidth) / float(kClineHeigth), 0.1f, 100.0f);
             Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, Multiply(viewMatrix, projectionMatrix));
             *wvpData = worldViewProjectionMatrix;
+            Matrix4x4 viewProjectionMatrix = Multiply(viewMatrix, projectionMatrix);
+
+            for (uint32_t index = 0; index < kNumInstance; ++index) {
+                Matrix4x4 worldMatrix = MakeAffineMatrix(transforms[index].scale, transforms[index].rotate, transforms[index].translate);
+                Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, viewProjectionMatrix);
+                instancingData[index].WVP = viewProjectionMatrix;
+                instancingData[index].World = worldMatrix;
+            }
+
 
             ImGui_ImplDX12_NewFrame();
             ImGui_ImplWin32_NewFrame();
@@ -1317,10 +1413,13 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             commandList->IASetVertexBuffers(0, 1, &vertexBufferView);
             commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
-            commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
+           // commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
+            commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
             commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
             // commandList->DrawInstanced(6, 1, 0, 0);
-            commandList->DrawInstanced(UINT(modelData.vertices.size()), 1, 0, 0);
+
+             // ドローコール
+            commandList->DrawInstanced(UINT(modelData.vertices.size()), kNumInstance, 0, 0);
 
             // スプライト
 
@@ -1330,7 +1429,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             // インデックスを指定
             commandList->IASetIndexBuffer(&indexBufferViewSprite);
 
-            // ドローコール
+
             // commandList->DrawInstanced(6, 1, 0, 0);
 
             commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
