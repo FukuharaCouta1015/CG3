@@ -1414,6 +1414,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
             commandList->SetGraphicsRootConstantBufferView(0, materialResource->GetGPUVirtualAddress());
            // commandList->SetGraphicsRootConstantBufferView(1, wvpResource->GetGPUVirtualAddress());
+
             commandList->SetGraphicsRootDescriptorTable(1, instancingSrvHandleGPU);
             commandList->SetGraphicsRootDescriptorTable(2, textureSrvHandleGPU);
             // commandList->DrawInstanced(6, 1, 0, 0);
