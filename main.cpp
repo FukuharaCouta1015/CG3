@@ -65,9 +65,8 @@ struct ModelData {
 };
 
 struct TransformationMatrix {
-    Matrix4x4 World;
     Matrix4x4 WVP;
-   
+    Matrix4x4 World;
 };
 
 
@@ -1039,8 +1038,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
     D3D12_RASTERIZER_DESC rasterizerDesc {};
 
-    rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
-    //  rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
+  //  rasterizerDesc.CullMode = D3D12_CULL_MODE_BACK;
+      rasterizerDesc.CullMode = D3D12_CULL_MODE_NONE;
 
     rasterizerDesc.FillMode = D3D12_FILL_MODE_SOLID;
 
@@ -1187,7 +1186,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
         swapChainDesc.BufferCount, // スワップチェーンのバッファ数
         rtvDesc.Format, // レンダーターゲットのフォーマップ
         srvDescriptorHeap, // シェーダーリソースビュー用のディスクリプタヒープ
-        srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), // シェーダーリソースビュー用のCPU��ィスクリプタハンドル
+        srvDescriptorHeap->GetCPUDescriptorHandleForHeapStart(), // シェーダーリソースビュー用のCPUディスクリプタハンドル
         srvDescriptorHeap->GetGPUDescriptorHandleForHeapStart() // シェーダーリソースビュー用のGPUディスクリプタハンドル
     );
 
@@ -1197,7 +1196,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
     *wvpData = MakeIdentity4x4();
 
     Transform transform { { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.0f } };
-    Transform cameraTransform { { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, -5.0f } };
+    Transform cameraTransform { { 1.0f, 1.0f, 1.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, -5.0f }};
 
     // Textureを読んで転送する
 
@@ -1351,7 +1350,8 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
             for (uint32_t index = 0; index < kNumInstance; ++index) {
                 Matrix4x4 worldMatrix = MakeAffineMatrix(transforms[index].scale, transforms[index].rotate, transforms[index].translate);
                 Matrix4x4 worldViewProjectionMatrix = Multiply(worldMatrix, viewProjectionMatrix);
-                instancingData[index].WVP = viewProjectionMatrix;
+
+                instancingData[index].WVP = worldViewProjectionMatrix;
                 instancingData[index].World = worldMatrix;
             }
 
