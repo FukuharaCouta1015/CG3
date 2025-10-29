@@ -1424,16 +1424,16 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
             // スプライト
 
-            commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
-            commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
+           // commandList->IASetVertexBuffers(0, 1, &vertexBufferViewSprite);
+          //  commandList->SetGraphicsRootConstantBufferView(1, transformationMatrixResourceSprite->GetGPUVirtualAddress());
 
             // インデックスを指定
-            commandList->IASetIndexBuffer(&indexBufferViewSprite);
+          //  commandList->IASetIndexBuffer(&indexBufferViewSprite);
 
 
             // commandList->DrawInstanced(6, 1, 0, 0);
 
-            commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
+         //   commandList->DrawIndexedInstanced(6, 1, 0, 0, 0);
 
             ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), commandList);
 
